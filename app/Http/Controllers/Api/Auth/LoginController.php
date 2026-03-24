@@ -55,7 +55,7 @@ class LoginController extends Controller
         ], 401);
         
         // Or use ValidationException if you want field-specific errors:
-        // throw ValidationException::withMessages([
+        // throw ValidationException::withMessages([    
         //     'login' => ['The provided credentials are incorrect.'],
         // ]);
     }
@@ -84,9 +84,10 @@ class LoginController extends Controller
     private function getRedirectRoute($role)
     {
         return match($role) {
-            'admin' => '/admin/dashboard',
-            'faculty' => '/faculty/dashboard',
+            'admin' => '/dashboard/admin',
+            'faculty' => '/dashboard/faculty',
             'trainee' => '/trainee/dashboard',
+
             default => '/dashboard',
         };
     }
