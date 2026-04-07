@@ -6,6 +6,8 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Batch extends Model
 {
@@ -42,101 +44,86 @@ class Batch extends Model
     
     public function trainees()
     {
-        return $this->belongsToMany(Trainee::class, 'batch_trainee', 'batch_id', 'trainee_id')
-                    ->withTimestamps()
-                    ->withPivot('enrollment_status');
+        // If you have a direct relationship through trainee_ids
+        if ($this->trainee_ids) {
+            return Trainee::whereIn('id', $this->trainee_ids);
+        }
+        return collect();
     }
     
-    // Scopes
-    public function scopeActive($query)
+
+      /**
+     * Get users (trainees) in this batch
+     */
+    public function users(): BelongsToMany
     {
-        return $query->where('status', 'Active');
+        return $this->belongsToMany(User::class, 'batch_user', 'batch_id', 'user_id');
     }
-    
-    public function scopePublished($query)
+
+    /**
+     * Get feedback responses for this batch
+     */
+    public function feedbackResponses(): HasMany
     {
-        return $query->whereIn('status', ['Active', 'Full']);
+        return $this->hasMany(FeedbackResponse::class, 'batch_id');
+    }
+
+    /**
+     * Get final feedback for this batch
+     */
+    public function finalFeedback(): HasMany
+    {
+        return $this->hasMany(FinalFeedback::class, 'batch_id');
+    }
+
+
+    // Get trainee count
+    public function getTraineesCountAttribute()
+    {
+        return $this->trainee_ids ? count($this->trainee_ids) : 0;
     }
     
-    // Accessors
+    // Get current count of trainees
     public function getCurrentCountAttribute(): int
     {
-        return count($this->trainee_ids ?? []);
+        return $this->trainee_ids ? count($this->trainee_ids) : 0;
     }
     
+    // Get fill percentage
     public function getFillPercentageAttribute(): float
     {
         if ($this->capacity <= 0) return 0;
         return min(100, ($this->current_count / $this->capacity) * 100);
     }
     
+    // Check if batch is full
     public function getIsFullAttribute(): bool
     {
         return $this->current_count >= $this->capacity;
     }
-    
-    // Update status based on current enrollment
-    public function updateStatusFromEnrollment(): void
+
+     /**
+     * Get the tours for this batch
+     */
+    public function tours(): HasMany
     {
-        if ($this->status === 'Archived') return;
-        
-        if ($this->current_count >= $this->capacity) {
-            $this->status = 'Full';
-        } elseif ($this->current_count > 0) {
-            $this->status = 'Active';
-        } else {
-            $this->status = 'Draft';
-        }
-        
-        $this->save();
+        return $this->hasMany(Tour::class, 'batch_id');
     }
-    
-    // Add trainee to batch
-    public function addTrainee($traineeId): void
+
+    /**
+     * Get the trainees in this batch
+     */
+    // public function trainees(): BelongsToMany
+    // {
+    //     return $this->belongsToMany(User::class, 'batch_user', 'batch_id', 'user_id')
+    //         ->where('role', 'trainee');
+    // }
+
+    /**
+     * Get the courses for this batch
+     */
+    public function courses(): BelongsToMany
     {
-        $currentIds = $this->trainee_ids ?? [];
-        if (!in_array($traineeId, $currentIds)) {
-            $currentIds[] = $traineeId;
-            $this->trainee_ids = $currentIds;
-            $this->save();
-            $this->updateStatusFromEnrollment();
-        }
-    }
-    
-    // Remove trainee from batch
-    public function removeTrainee($traineeId): void
-    {
-        $currentIds = $this->trainee_ids ?? [];
-        $this->trainee_ids = array_values(array_filter($currentIds, fn($id) => $id != $traineeId));
-        $this->save();
-        $this->updateStatusFromEnrollment();
-    }
-    
-    // Bulk assign trainees
-    public function assignTrainees(array $traineeIds): array
-    {
-        $currentIds = $this->trainee_ids ?? [];
-        $newIds = array_unique(array_merge($currentIds, $traineeIds));
-        $added = array_diff($newIds, $currentIds);
-        
-        $this->trainee_ids = $newIds;
-        $this->save();
-        $this->updateStatusFromEnrollment();
-        
-        return $added;
-    }
-    
-    // Bulk remove trainees
-    public function removeTrainees(array $traineeIds): array
-    {
-        $currentIds = $this->trainee_ids ?? [];
-        $removed = array_intersect($currentIds, $traineeIds);
-        $newIds = array_values(array_diff($currentIds, $traineeIds));
-        
-        $this->trainee_ids = $newIds;
-        $this->save();
-        $this->updateStatusFromEnrollment();
-        
-        return $removed;
+        return $this->belongsToMany(Course::class, 'batch_courses', 'batch_id', 'course_id');
     }
 }

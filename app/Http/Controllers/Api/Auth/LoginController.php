@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Api\Auth;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Hash; // Add this
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 use App\Models\User;
 
@@ -53,30 +53,114 @@ class LoginController extends Controller
             'success' => false,
             'message' => 'The provided credentials are incorrect.'
         ], 401);
+    }
+
+    /**
+     * Check if user is authenticated
+     */
+    public function check(Request $request)
+    {
+        $user = $request->user();
         
-        // Or use ValidationException if you want field-specific errors:
-        // throw ValidationException::withMessages([    
-        //     'login' => ['The provided credentials are incorrect.'],
-        // ]);
+        if (!$user) {
+            return response()->json([
+                'success' => false,
+                'authenticated' => false,
+                'message' => 'Not authenticated'
+            ], 401);
+        }
+
+        // Check if token is still valid
+        if ($user->currentAccessToken()) {
+            return response()->json([
+                'success' => true,
+                'authenticated' => true,
+                'data' => [
+                    'user' => [
+                        'id' => $user->id,
+                        'name' => $user->name,
+                        'email' => $user->email,
+                        'username' => $user->username,
+                        'role' => $user->role,
+                    ],
+                    'role' => $user->role,
+                    'redirect' => $this->getRedirectRoute($user->role),
+                ]
+            ]);
+        }
+
+        return response()->json([
+            'success' => false,
+            'authenticated' => false,
+            'message' => 'Invalid or expired token'
+        ], 401);
     }
 
     public function logout(Request $request)
     {
-        $request->user()->currentAccessToken()->delete();
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Logged out successfully'
-        ]);
+        try {
+            $user = $request->user();
+            
+            if ($user) {
+                // Log the logout activity (optional)
+                \Log::info('User logged out', [
+                    'user_id' => $user->id,
+                    'email' => $user->email,
+                    'ip' => $request->ip(),
+                    'user_agent' => $request->userAgent()
+                ]);
+                
+                // Revoke the current access token
+                $request->user()->currentAccessToken()->delete();
+                
+                // If using multiple tokens, you can revoke all tokens:
+                // $request->user()->tokens()->delete();
+                
+                // If using sessions, clear them
+                // Auth::logout();
+            }
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Logged out successfully'
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Logout error', [
+                'error' => $e->getMessage(),
+                'user_id' => $request->user()?->id
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Logout failed'
+            ], 500);
+        }
     }
+
+    
 
     public function me(Request $request)
     {
+        $user = $request->user();
+        
+        if (!$user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthenticated'
+            ], 401);
+        }
+        
         return response()->json([
             'success' => true,
             'data' => [
-                'user' => $request->user(),
-                'role' => $request->user()->role,
+                'user' => [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'username' => $user->username,
+                    'role' => $user->role,
+                ],
+                'role' => $user->role,
             ]
         ]);
     }
@@ -86,8 +170,8 @@ class LoginController extends Controller
         return match($role) {
             'admin' => '/dashboard/admin',
             'faculty' => '/dashboard/faculty',
-            'trainee' => '/trainee/dashboard',
-
+            'trainee' => '/dashboard/trainee',
+            'course_clerk' => '/dashboard/course-clerk',
             default => '/dashboard',
         };
     }

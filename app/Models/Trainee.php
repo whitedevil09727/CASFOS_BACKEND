@@ -19,44 +19,34 @@ class Trainee extends Model
         'enrollment_status',
         'email',
         'phone',
-        'date_of_birth',
-        'address',
+        'user_id',
+        'batch_id', // Make sure this exists
     ];
     
     protected $casts = [
-        'date_of_birth' => 'date',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',
     ];
     
     // Relationships
-    public function batches()
+    public function user()
     {
-        return $this->belongsToMany(Batch::class, 'batch_trainee', 'trainee_id', 'batch_id')
-                    ->withTimestamps()
-                    ->withPivot('enrollment_status');
+        return $this->belongsTo(User::class);
     }
     
-    // Scopes
-    public function scopeEnrolled($query)
+    public function batch()
     {
-        return $query->where('enrollment_status', 'Enrolled');
+        return $this->belongsTo(Batch::class);
     }
     
-    public function scopeByServiceType($query, $serviceType)
+    public function attendances()
     {
-        if ($serviceType !== 'All') {
-            return $query->where('service_type', $serviceType);
-        }
-        return $query;
+        return $this->hasMany(Attendance::class);
     }
-    
-    public function scopeByGender($query, $gender)
+
+        public function getRollNumberAttribute($value)
     {
-        if ($gender !== 'All') {
-            return $query->where('gender', $gender);
-        }
-        return $query;
+        return $value ?? 'N/A';
     }
 }

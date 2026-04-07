@@ -8,6 +8,11 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Database\Eloquent\SoftDeletes;
+// use Laravel\Sanctum\HasApiTokens;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class User extends Authenticatable
 {
@@ -217,5 +222,60 @@ class User extends Authenticatable
     public function promotedBy()
     {
         return $this->belongsTo(User::class, 'promoted_by');
+    }
+
+      public function facultyProfile()
+    {
+        return $this->hasOne(FacultyProfile::class);
+    }
+
+        public function trainee()
+    {
+        return $this->hasOne(Trainee::class, 'user_id');
+    }
+    
+    // Helper method to check if user is a trainee
+    // public function isTrainee(): bool
+    // {
+    //     return $this->role === self::ROLE_TRAINEE;
+    // }
+
+
+
+// public function facultyProfile()
+// {
+//     return $this->hasOne(FacultyProfile::class, 'user_id');
+// }
+
+public function feedbackResponses()
+{
+    return $this->hasMany(FeedbackResponse::class, 'trainee_id');
+}
+
+public function finalFeedbacks()
+{
+    return $this->hasMany(FinalFeedback::class, 'trainee_id');
+}
+
+public function releasedCycles()
+{
+    return $this->hasMany(FeedbackReleaseCycle::class, 'released_by');
+}
+
+
+  /**
+     * Get the batch associated with the user (if user is a trainee)
+     */
+    public function batch()
+    {
+        return $this->belongsTo(Batch::class, 'batch_id');
+    }
+
+    /**
+     * Get batches (many-to-many relationship if users can be in multiple batches)
+     */
+    public function batches(): BelongsToMany
+    {
+        return $this->belongsToMany(Batch::class, 'batch_user', 'user_id', 'batch_id');
     }
 }
